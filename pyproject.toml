@@ -1,0 +1,14 @@
+[project]
+name = "comfyui_rh_apicall"
+description = "This is a ComfyUI plugin that makes it easier to call and run workflows from RunningHub in your local ComfyUI setup."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/HM-RunningHub/ComfyUI_RH_APICall"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI_RH_APICall"
+Icon = ""

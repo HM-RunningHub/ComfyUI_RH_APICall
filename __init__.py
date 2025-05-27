@@ -34,7 +34,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RH_BatchImages": "RH Batch Images From ImageList",
     "RH_VideoUploader": "RH Video Uploader",
     "RH_AudioUploader": "RH Audio Uploader",
-    "RH_LoraUploader": "RunningHub LoRA Uploader",
+    "RH_LoraUploader": "RH LoRA Uploader",
 
 }
 

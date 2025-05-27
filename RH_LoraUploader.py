@@ -176,5 +176,5 @@ NODE_CLASS_MAPPINGS = {
     "RH_LoraUploader": RH_LoraUploader
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RH_LoraUploader": "RunningHub LoRA Uploader"
+    "RH_LoraUploader": "RH LoRA Uploader"
 }

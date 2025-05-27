@@ -4,7 +4,7 @@ from .RH_ExecuteNode import ExecuteNode
 from .RH_ImageUploaderNode import ImageUploaderNode
 from .RH_VideoUploader import RH_VideoUploader
 from .RH_AudioUploader import RH_AudioUploader
-
+from .RH_LoraUploader import RH_LoraUploader
 from .RH_Utils import *
 
 
@@ -19,6 +19,7 @@ NODE_CLASS_MAPPINGS = {
     "RH_BatchImages": RH_Batch_Images_From_List,
     "RH_VideoUploader": RH_VideoUploader,
     "RH_AudioUploader": RH_AudioUploader,
+    "RH_LoraUploader": RH_LoraUploader,
 
 
 }
@@ -33,6 +34,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RH_BatchImages": "RH Batch Images From ImageList",
     "RH_VideoUploader": "RH Video Uploader",
     "RH_AudioUploader": "RH Audio Uploader",
+    "RH_LoraUploader": "RH LoRA Uploader",
 
 }
 

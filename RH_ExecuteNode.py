@@ -125,8 +125,8 @@ class ExecuteNode:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO", "VIDEO")
-    RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio", "video")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "AUDIO", "VIDEO", "VIDEO", "VIDEO", "VIDEO", "VIDEO")
+    RETURN_NAMES = ("images", "video_frames", "latent", "text", "audio", "video1", "video2", "video3", "video4", "video5")
 
     CATEGORY = "RunningHub"
     FUNCTION = "process"
@@ -272,22 +272,28 @@ class ExecuteNode:
     def on_ws_error(self, ws, error):
         """Handle WebSocket errors"""
         print(f"WebSocket error: {error}")
-        self.ws_error = error
-        # Mark task as complete via the centralized method
-        self.complete_progress()
+        # Don't set ws_error for connection errors - let HTTP polling continue
+        # Only log the error and continue monitoring via HTTP
+        error_str = str(error).lower()
+        if "connection" in error_str or "lost" in error_str:
+            print("WebSocket connection lost. Switching to HTTP polling mode...")
+            # Don't mark as error or complete - let HTTP polling continue
+        else:
+            # For other critical errors, still set the error
+            self.ws_error = error
+            self.complete_progress()
 
     def on_ws_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close"""
         print(f"WebSocket closed: {close_status_code} - {close_msg}")
-        # If closed unexpectedly, mark as complete to end loop
+        # If closed unexpectedly, don't immediately fail - let HTTP polling continue
         # Use lock temporarily just to read task_completed safely
         with self.node_lock:
              should_complete = not self.task_completed
         if should_complete:
-             print("Warning: WebSocket closed unexpectedly. Forcing task completion.")
-             self.ws_error = self.ws_error or IOError(f"WebSocket closed unexpectedly ({close_status_code})")
-             # Mark task as complete via the centralized method
-             self.complete_progress()
+             print("Warning: WebSocket closed unexpectedly. Continuing with HTTP polling mode...")
+             # Don't set error or force completion - let HTTP polling handle task monitoring
+             # The polling mechanism will detect if the task actually failed or succeeded
 
     def on_ws_open(self, ws):
         """Handle WebSocket connection open"""
@@ -864,16 +870,25 @@ class ExecuteNode:
                         # else: image_data_list remains empty
 
                     # Process Videos (extract frames) -> Add to frame_data_list
+                    # Only extract frames if there's a single video; skip for multiple videos to save time
+                    skipped_frame_extraction = False  # Flag to track if we skipped frame extraction
                     if frame_video_urls:
-                        print(f"Processing {len(frame_video_urls)} videos for frames...")
-                        for url in frame_video_urls:
-                            try:
-                                frame_tensors = self.download_video(url)
-                                if frame_tensors:
-                                    frame_data_list.extend(frame_tensors) # <<< Add to frame_data_list
-                                    print(f"Extracted {len(frame_tensors)} frames from video {url}")
-                            except Exception as vid_e:
-                                print(f"Error processing video {url}: {vid_e}")
+                        if len(frame_video_urls) > 1:
+                            print(f"Multiple videos detected ({len(frame_video_urls)}). Skipping frame extraction to save processing time.")
+                            print("video_frames output will show a placeholder image.")
+                            # Don't extract frames, will use placeholder later
+                            skipped_frame_extraction = True
+                        else:
+                            # Single video - extract frames as before
+                            print(f"Processing single video for frames...")
+                            for url in frame_video_urls:
+                                try:
+                                    frame_tensors = self.download_video(url)
+                                    if frame_tensors:
+                                        frame_data_list.extend(frame_tensors) # <<< Add to frame_data_list
+                                        print(f"Extracted {len(frame_tensors)} frames from video {url}")
+                                except Exception as vid_e:
+                                    print(f"Error processing video {url}: {vid_e}")
 
                     # Process Latents (load the first one found)
                     if latent_urls and latent_data is None:
@@ -914,19 +929,27 @@ class ExecuteNode:
                              except Exception as aud_e:
                                  print(f"Error processing audio file {url}: {aud_e}")
 
-                    # <<< Process Video Files (download the first mp4 found for VIDEO output)
-                    video_data = None
+                    # <<< Process Video Files (download up to 5 mp4 files for VIDEO outputs)
+                    video_data_list = []  # Store up to 5 video objects
                     if video_urls and video_support_available:
-                        print(f"Processing {len(video_urls)} mp4 video file(s) for VIDEO output...")
-                        for url in video_urls:
+                        num_videos = len(video_urls)
+                        max_videos = 5
+                        videos_to_process = min(num_videos, max_videos)
+                        
+                        print(f"Processing {videos_to_process} mp4 video file(s) for VIDEO output (total found: {num_videos})...")
+                        
+                        for i, url in enumerate(video_urls[:max_videos]):  # Take only first 5
                              try:
                                  video_path = self.download_video_for_output(url)
                                  if video_path is not None:
-                                     video_data = VideoFromFile(video_path)
-                                     print(f"Successfully created VIDEO output from {url}")
-                                     break # Process only the first successful video file
+                                     video_obj = VideoFromFile(video_path)
+                                     video_data_list.append(video_obj)
+                                     print(f"Successfully created VIDEO output {i+1} from {url}")
                              except Exception as vid_e:
                                  print(f"Error processing video file {url}: {vid_e}")
+                        
+                        if num_videos > max_videos:
+                            print(f"Note: {num_videos - max_videos} additional video(s) were ignored (max 5 videos supported)")
                     elif video_urls and not video_support_available:
                         print(f"Found {len(video_urls)} mp4 files but VIDEO support not available")
 
@@ -974,8 +997,13 @@ class ExecuteNode:
 
         # Placeholder for video frames
         if not frame_data_list:
-            print("No video frames generated, creating placeholder.")
-            frame_data_list.append(self.create_placeholder_image(text="No video frame output"))
+            # Check if we skipped frame extraction due to multiple videos
+            if 'skipped_frame_extraction' in locals() and skipped_frame_extraction:
+                print("Frame extraction was skipped for multiple videos, creating placeholder.")
+                frame_data_list.append(self.create_placeholder_image(text="Multiple videos - frames not extracted", width=512, height=128))
+            else:
+                print("No video frames generated, creating placeholder.")
+                frame_data_list.append(self.create_placeholder_image(text="No video frame output"))
 
         # Placeholder for latent
         if latent_data is None:
@@ -992,11 +1020,29 @@ class ExecuteNode:
             print("No audio generated, creating placeholder.")
             audio_data = self.create_placeholder_audio()
 
-        # <<< Placeholder for video (only if video_data is None and no video_urls were found)
-        if 'video_data' not in locals():
-            video_data = None
-        if video_data is None:
-            print("No video generated, VIDEO output will be None.")
+        # <<< Prepare 5 video outputs (video1-video5)
+        # Ensure video_data_list exists
+        if 'video_data_list' not in locals():
+            video_data_list = []
+        
+        # Pad video_data_list to exactly 5 elements with placeholder videos
+        print(f"Preparing video outputs: {len(video_data_list)} video(s) available")
+        while len(video_data_list) < 5:
+            # Create placeholder video for empty slots
+            placeholder_video = self.create_placeholder_video()
+            video_data_list.append(placeholder_video)
+        
+        # Take only first 5 (in case somehow more were added)
+        video_data_list = video_data_list[:5]
+        
+        video1, video2, video3, video4, video5 = video_data_list
+        
+        # Print summary of video outputs
+        real_video_count = sum(1 for v in [video1, video2, video3, video4, video5] if v is not None and not (hasattr(v, 'path') and 'placeholder' in v.path))
+        if real_video_count > 0:
+            print(f"Returning {real_video_count} real video output(s) and {5 - real_video_count} placeholder(s) across video1-video5")
+        else:
+            print("No real videos generated, all 5 video outputs will use placeholders.")
 
         # Batch images and frames separately
         final_image_batch = torch.cat(image_data_list, dim=0) if image_data_list else None
@@ -1019,7 +1065,7 @@ class ExecuteNode:
         else:
             print(f"DEBUG: audio_data is None or missing waveform key")
         
-        return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data, video_data) 
+        return (final_image_batch, final_frame_batch, latent_data, text_data, audio_data, video1, video2, video3, video4, video5) 
 
     def create_placeholder_image(self, text="No image/video output", width=256, height=64, with_alpha=False):
         """Creates a placeholder image tensor with text.
@@ -1105,6 +1151,55 @@ class ExecuteNode:
         
         print(f"Created ComfyUI-standard audio dictionary with keys: {list(audio_dict.keys())}")
         return audio_dict
+
+    def create_placeholder_video(self):
+        """Creates a placeholder video file and returns a VideoFromFile object.
+        
+        This creates a minimal 1-second black video at 1 fps to satisfy downstream video nodes.
+        """
+        import tempfile
+        
+        try:
+            print("Creating placeholder video for empty video output...")
+            
+            # Create temporary file with .mp4 extension
+            temp_video_fd, temp_video_path = tempfile.mkstemp(suffix='_placeholder.mp4', prefix='video_placeholder_')
+            os.close(temp_video_fd)  # Close file descriptor, we'll write with cv2
+            
+            # Video properties
+            width, height = 64, 64
+            fps = 1
+            duration_frames = 1  # Just 1 frame
+            
+            # Create video writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+            
+            if not out.isOpened():
+                print("Warning: Failed to create VideoWriter, trying alternate codec...")
+                fourcc = cv2.VideoWriter_fourcc(*'avc1')
+                out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+            
+            if not out.isOpened():
+                print("Error: Could not create placeholder video, returning None")
+                os.remove(temp_video_path)
+                return None
+            
+            # Write black frames
+            black_frame = np.zeros((height, width, 3), dtype=np.uint8)
+            for _ in range(duration_frames):
+                out.write(black_frame)
+            
+            out.release()
+            
+            print(f"Created placeholder video at: {temp_video_path}")
+            
+            # Return VideoFromFile object
+            return VideoFromFile(temp_video_path)
+            
+        except Exception as e:
+            print(f"Error creating placeholder video: {e}")
+            return None
 
     def download_image(self, image_url):
         """

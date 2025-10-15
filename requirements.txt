@@ -6,3 +6,4 @@ websocket-client
 opencv-python
 safetensors
 torchaudio 
+websocket

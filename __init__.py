@@ -1,5 +1,6 @@
 from .RH_SettingsNode import SettingsNode
 from .RH_NodeInfoListNode import NodeInfoListNode
+from .RH_NodeInfoList10Node import NodeInfoList10Node
 from .RH_ExecuteNode import ExecuteNode
 from .RH_ImageUploaderNode import ImageUploaderNode
 from .RH_VideoUploader import RH_VideoUploader
@@ -11,6 +12,7 @@ from .RH_Utils import *
 NODE_CLASS_MAPPINGS = {
     "RH_SettingsNode": SettingsNode,
     "RH_NodeInfoListNode": NodeInfoListNode,
+    "RH_NodeInfoList10Node": NodeInfoList10Node,
     "RH_ExecuteNode": ExecuteNode,
     "RH_ImageUploaderNode": ImageUploaderNode,
     "RH_Utils": AnyToStringNode,
@@ -25,6 +27,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RH_SettingsNode": "RH Settings",
     "RH_NodeInfoListNode": "RH Node Info List",
+    "RH_NodeInfoList10Node": "RH Node Info List x10",
     "RH_ExecuteNode": "RH Execute",
     "RH_ImageUploaderNode": "RH Image Uploader",
     "RH_Utils": "RH Anything to String",

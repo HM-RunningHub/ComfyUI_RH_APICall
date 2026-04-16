@@ -27,7 +27,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RH_SettingsNode": "RH Settings",
     "RH_NodeInfoListNode": "RH Node Info List",
-    "RH_NodeInfoList10Node": "RH Node Info List x10",
+    "RH_NodeInfoList10Node": "RH Node Info List (Dynamic)",
     "RH_ExecuteNode": "RH Execute",
     "RH_ImageUploaderNode": "RH Image Uploader",
     "RH_Utils": "RH Anything to String",

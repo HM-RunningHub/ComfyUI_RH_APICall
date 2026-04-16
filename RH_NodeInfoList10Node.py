@@ -4,14 +4,15 @@ from .RH_Utils import anytype
 
 
 class NodeInfoList10Node:
-    ROW_COUNT = 10
+    DEFAULT_ROW_COUNT = 3
+    MAX_ROW_COUNT = 20
 
     def __init__(self):
         self.node_info_list = []
 
     @classmethod
     def _default_mapping_rows(cls):
-        return [{"nodeId": "", "fieldName": ""} for _ in range(cls.ROW_COUNT)]
+        return [{"nodeId": "", "fieldName": ""} for _ in range(cls.MAX_ROW_COUNT)]
 
     @classmethod
     def _normalize_rows(cls, data):
@@ -24,7 +25,7 @@ class NodeInfoList10Node:
         if not isinstance(source_rows, list):
             return rows
 
-        for i, item in enumerate(source_rows[: cls.ROW_COUNT]):
+        for i, item in enumerate(source_rows[: cls.MAX_ROW_COUNT]):
             if not isinstance(item, dict):
                 continue
             node_id = item.get("nodeId", "")
@@ -33,6 +34,14 @@ class NodeInfoList10Node:
             rows[i]["fieldName"] = "" if field_name is None else str(field_name)
 
         return rows
+
+    @classmethod
+    def _normalize_row_count(cls, row_count):
+        try:
+            value = int(row_count)
+        except (TypeError, ValueError):
+            value = cls.DEFAULT_ROW_COUNT
+        return max(1, min(cls.MAX_ROW_COUNT, value))
 
     @classmethod
     def _parse_mapping_table(cls, mapping_table):
@@ -50,29 +59,30 @@ class NodeInfoList10Node:
 
     @classmethod
     def INPUT_TYPES(cls):
+        required = {
+            "mappingTable": (
+                "STRING",
+                {
+                    "default": json.dumps({"rows": cls._default_mapping_rows()}, ensure_ascii=False),
+                    "multiline": False,
+                },
+            ),
+            "rowCount": (
+                "INT",
+                {"default": cls.DEFAULT_ROW_COUNT, "min": 1, "max": cls.MAX_ROW_COUNT, "step": 1},
+            ),
+            "fieldValue_1": (anytype, {"default": "", "forceInput": True}),
+        }
+        optional = {
+            "workflowSchema": ("STRING", {"default": "", "multiline": False}),
+            "previousNodeInfoList": ("ARRAY", {"default": []}),
+        }
+        for i in range(2, cls.MAX_ROW_COUNT + 1):
+            optional[f"fieldValue_{i}"] = (anytype, {"default": "", "forceInput": True})
+
         return {
-            "required": {
-                "mappingTable": (
-                    "STRING",
-                    {
-                        "default": json.dumps(cls._default_mapping_rows(), ensure_ascii=False),
-                        "multiline": False,
-                    },
-                ),
-                "fieldValue1": (anytype, {"default": ""}),
-                "fieldValue2": (anytype, {"default": ""}),
-                "fieldValue3": (anytype, {"default": ""}),
-                "fieldValue4": (anytype, {"default": ""}),
-                "fieldValue5": (anytype, {"default": ""}),
-                "fieldValue6": (anytype, {"default": ""}),
-                "fieldValue7": (anytype, {"default": ""}),
-                "fieldValue8": (anytype, {"default": ""}),
-                "fieldValue9": (anytype, {"default": ""}),
-                "fieldValue10": (anytype, {"default": ""}),
-            },
-            "optional": {
-                "previousNodeInfoList": ("ARRAY", {"default": []}),
-            },
+            "required": required,
+            "optional": optional,
         }
 
     RETURN_TYPES = ("ARRAY",)
@@ -82,38 +92,22 @@ class NodeInfoList10Node:
     def process(
         self,
         mappingTable,
-        fieldValue1,
-        fieldValue2,
-        fieldValue3,
-        fieldValue4,
-        fieldValue5,
-        fieldValue6,
-        fieldValue7,
-        fieldValue8,
-        fieldValue9,
-        fieldValue10,
+        rowCount,
+        fieldValue_1,
         previousNodeInfoList=None,
+        workflowSchema="",
+        **kwargs,
     ):
+        _ = workflowSchema
         rows = self._parse_mapping_table(mappingTable)
-        field_values = [
-            fieldValue1,
-            fieldValue2,
-            fieldValue3,
-            fieldValue4,
-            fieldValue5,
-            fieldValue6,
-            fieldValue7,
-            fieldValue8,
-            fieldValue9,
-            fieldValue10,
-        ]
+        row_count = self._normalize_row_count(rowCount)
 
         self.node_info_list = []
 
         if previousNodeInfoList:
             self.node_info_list.extend(previousNodeInfoList)
 
-        for i in range(self.ROW_COUNT):
+        for i in range(row_count):
             row = rows[i] if i < len(rows) else {"nodeId": "", "fieldName": ""}
             node_id_raw = str(row.get("nodeId", "")).strip()
             field_name = str(row.get("fieldName", "")).strip()
@@ -126,7 +120,11 @@ class NodeInfoList10Node:
             except (TypeError, ValueError):
                 continue
 
-            field_value = field_values[i]
+            if i == 0:
+                field_value = fieldValue_1
+            else:
+                field_value = kwargs.get(f"fieldValue_{i + 1}", kwargs.get(f"fieldValue{i + 1}", ""))
+
             node_info = {
                 "nodeId": node_id,
                 "fieldName": field_name,

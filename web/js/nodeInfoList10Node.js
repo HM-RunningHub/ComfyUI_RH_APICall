@@ -200,12 +200,15 @@ function parseWorkflowSchema(workflow) {
     const nodeLabels = {};
 
     if (workflow && Array.isArray(workflow.nodes)) {
+        const typeFields = {};
+
+        // Pass 1: collect per-type field candidates from nodes that do expose input names.
         workflow.nodes.forEach((node) => {
             if (!node || typeof node !== "object") {
                 return;
             }
-            const nodeId = node.id == null ? "" : String(node.id);
-            if (!nodeId) {
+            const nodeType = node.type == null ? "" : String(node.type);
+            if (!nodeType) {
                 return;
             }
             const fields = [];
@@ -214,11 +217,44 @@ function parseWorkflowSchema(workflow) {
                 if (!inp || typeof inp !== "object") {
                     return;
                 }
-                if (inp.name != null) {
-                    fields.push(String(inp.name));
+                // Some workflows omit "name" but keep widget.name; use both.
+                const candidate = inp.name ?? (inp.widget && inp.widget.name) ?? "";
+                if (candidate != null && String(candidate).trim()) {
+                    fields.push(String(candidate));
                 }
             });
-            fieldsByNodeId[nodeId] = dedupeStrings(fields);
+            const deduped = dedupeStrings(fields);
+            if (deduped.length > 0) {
+                typeFields[nodeType] = deduped;
+            }
+        });
+
+        // Pass 2: build nodeId -> fields, with same-type fallback for nodes that have empty inputs.
+        workflow.nodes.forEach((node) => {
+            if (!node || typeof node !== "object") {
+                return;
+            }
+            const nodeId = node.id == null ? "" : String(node.id);
+            if (!nodeId) {
+                return;
+            }
+            const nodeType = node.type == null ? "" : String(node.type);
+            const fields = [];
+            const inputs = Array.isArray(node.inputs) ? node.inputs : [];
+            inputs.forEach((inp) => {
+                if (!inp || typeof inp !== "object") {
+                    return;
+                }
+                const candidate = inp.name ?? (inp.widget && inp.widget.name) ?? "";
+                if (candidate != null && String(candidate).trim()) {
+                    fields.push(String(candidate));
+                }
+            });
+            let deduped = dedupeStrings(fields);
+            if (deduped.length === 0 && nodeType && Array.isArray(typeFields[nodeType])) {
+                deduped = [...typeFields[nodeType]];
+            }
+            fieldsByNodeId[nodeId] = deduped;
 
             const sAndRName = node?.properties?.["Node name for S&R"];
             const rawName = node.title || sAndRName || node.type || nodeId;

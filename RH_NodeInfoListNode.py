@@ -7,7 +7,7 @@ class NodeInfoListNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "nodeId": ("INT", {"default": 0}),
+                "nodeId": ("INT", {"default": 0, "min": 0, "max": 999999, "step": 1}),
                 "fieldName": ("STRING", {"default": ""}),
                 "fieldValue": ("STRING", {"default": ""}),
             },
